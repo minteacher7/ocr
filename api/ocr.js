@@ -1,5 +1,4 @@
 module.exports = async function handler(req, res) {
-    // POST 요청만 허용
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method Not Allowed' });
     }
@@ -7,7 +6,6 @@ module.exports = async function handler(req, res) {
     try {
         const apiKey = process.env.GEMINI_API_KEY;
 
-        // API 키 미설정 시 안내
         if (!apiKey) {
             return res.status(500).json({ 
                 error: 'Vercel 환경 변수에 GEMINI_API_KEY가 설정되지 않았습니다.' 
@@ -20,8 +18,8 @@ module.exports = async function handler(req, res) {
             return res.status(400).json({ error: '이미지 데이터가 전달되지 않았습니다.' });
         }
 
-        // Gemini API 호출 (gemini-2.0-flash 사용)
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+        // Gemini API 호출 (gemini-3.6-flash 사용)
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
