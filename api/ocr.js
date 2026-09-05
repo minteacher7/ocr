@@ -1,166 +1,56 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>이미지 OCR 및 PDF 변환기</title>
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- html2pdf.js CDN -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-</head>
-<body class="bg-slate-50 min-h-screen py-10 px-4 sm:px-6 lg:px-8">
-    <div class="max-w-4xl mx-auto space-y-6">
-        
-        <!-- 헤더 영역 -->
-        <header class="text-center space-y-2">
-            <h1 class="text-3xl font-extrabold text-slate-800 tracking-tight">이미지 OCR &amp; PDF 변환기</h1>
-            <p class="text-slate-500 text-sm">이미지 속 텍스트를 AI로 추출하고 PDF 문서로 저장하세요.</p>
-        </header>
+module.exports = async function handler(req, res) {
+    // POST 요청만 허용
+    if (req.method !== 'POST') {
+        return res.status(405).json({ error: 'Method Not Allowed' });
+    }
 
-        <!-- 메인 작업 영역 -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            
-            <!-- 1. 이미지 업로드 영역 -->
-            <section class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between">
-                <div>
-                    <h2 class="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-                        <span class="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 text-xs flex items-center justify-center font-bold">1</span>
-                        이미지 업로드
-                    </h2>
-                    
-                    <label class="flex flex-col items-center justify-center w-full h-44 border-2 border-dashed border-slate-300 hover:border-indigo-400 rounded-xl cursor-pointer bg-slate-50 hover:bg-indigo-50/30 transition mb-4">
-                        <div class="flex flex-col items-center justify-center pt-5 pb-6">
-                            <svg class="w-8 h-8 mb-2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-                            </svg>
-                            <p class="text-sm text-slate-600 font-medium">클릭하거나 이미지를 선택하세요</p>
-                        </div>
-                        <input type="file" id="imageInput" accept="image/*" class="hidden">
-                    </label>
+    try {
+        const apiKey = process.env.GEMINI_API_KEY;
 
-                    <div class="flex items-center justify-center bg-slate-100 rounded-lg overflow-hidden min-h-[160px] max-h-[220px] mb-4 border border-slate-200">
-                        <img id="imagePreview" class="hidden max-h-52 object-contain" alt="미리보기">
-                        <span id="previewPlaceholder" class="text-slate-400 text-xs">선택된 이미지가 없습니다</span>
-                    </div>
-                </div>
+        // API 키 미설정 시 안내
+        if (!apiKey) {
+            return res.status(500).json({ 
+                error: 'Vercel 환경 변수에 GEMINI_API_KEY가 설정되지 않았습니다.' 
+            });
+        }
 
-                <button id="ocrBtn" onclick="processOCR()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-lg transition shadow-sm disabled:bg-slate-300 disabled:cursor-not-allowed" disabled>
-                    텍스트 추출하기 (OCR)
-                </button>
-            </section>
+        const { imageBase64, mimeType } = req.body || {};
 
-            <!-- 2. 추출 결과 및 PDF 저장 영역 -->
-            <section class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between">
-                <div class="flex-1 flex flex-col">
-                    <h2 class="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-                        <span class="w-6 h-6 rounded-full bg-emerald-100 text-emerald-600 text-xs flex items-center justify-center font-bold">2</span>
-                        추출 결과 &amp; PDF 변환
-                    </h2>
-                    
-                    <div id="status" class="hidden text-xs font-medium mb-3 p-3 rounded-lg"></div>
+        if (!imageBase64 || !mimeType) {
+            return res.status(400).json({ error: '이미지 데이터가 전달되지 않았습니다.' });
+        }
 
-                    <div class="flex-1 min-h-[220px] mb-4 flex flex-col">
-                        <textarea id="ocrOutput" class="w-full flex-1 p-3.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none text-sm leading-relaxed resize-none font-sans" placeholder="추출된 텍스트가 여기에 표시됩니다."></textarea>
-                    </div>
-                </div>
-
-                <button id="pdfBtn" onclick="downloadPDF()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-lg transition shadow-sm disabled:bg-slate-300 disabled:cursor-not-allowed" disabled>
-                    PDF 파일로 저장하기
-                </button>
-            </section>
-
-        </div>
-    </div>
-
-    <div id="pdfContent" class="hidden p-8 font-sans leading-relaxed text-slate-900"></div>
-
-    <script>
-        const imageInput = document.getElementById('imageInput');
-        const imagePreview = document.getElementById('imagePreview');
-        const previewPlaceholder = document.getElementById('previewPlaceholder');
-        const ocrBtn = document.getElementById('ocrBtn');
-        const pdfBtn = document.getElementById('pdfBtn');
-        const ocrOutput = document.getElementById('ocrOutput');
-        const statusDiv = document.getElementById('status');
-        
-        let selectedBase64 = '';
-        let selectedMimeType = '';
-
-        imageInput.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-
-            selectedMimeType = file.type;
-            const reader = new FileReader();
-            
-            reader.onload = (event) => {
-                selectedBase64 = event.target.result.split(',')[1];
-                imagePreview.src = event.target.result;
-                imagePreview.classList.remove('hidden');
-                previewPlaceholder.classList.add('hidden');
-                ocrBtn.disabled = false;
-                showStatus('이미지가 업로드되었습니다. [텍스트 추출하기]를 누르세요.', 'bg-slate-100 text-slate-700');
-            };
-
-            reader.readAsDataURL(file);
+        // Gemini API 호출 (gemini-2.0-flash 사용)
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{
+                    parts: [
+                        { text: "Extract all visible text from this image as accurately as possible. Maintain original structure and line breaks without adding explanations." },
+                        {
+                            inlineData: {
+                                mimeType: mimeType,
+                                data: imageBase64
+                            }
+                        }
+                    ]
+                }]
+            })
         });
 
-        // Vercel 서버리스 함수(/api/ocr) 호출
-        async function processOCR() {
-            showStatus('AI가 이미지 속 텍스트를 분석하는 중입니다...', 'bg-blue-50 text-blue-600 border border-blue-200');
-            ocrBtn.disabled = true;
+        const data = await response.json();
 
-            try {
-                const response = await fetch('/api/ocr', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        imageBase64: selectedBase64,
-                        mimeType: selectedMimeType
-                    })
-                });
-
-                const data = await response.json();
-
-                if (!response.ok) {
-                    throw new Error(data.error || '텍스트 추출 중 오류가 발생했습니다.');
-                }
-
-                ocrOutput.value = data.text;
-                pdfBtn.disabled = false;
-                showStatus('텍스트 추출 성공! 수정한 뒤 PDF로 저장할 수 있습니다.', 'bg-emerald-50 text-emerald-600 border border-emerald-200');
-
-            } catch (err) {
-                showStatus(`오류 발생: ${err.message}`, 'bg-red-50 text-red-600 border border-red-200');
-            } finally {
-                ocrBtn.disabled = false;
-            }
+        if (!response.ok) {
+            return res.status(response.status).json({ 
+                error: data.error?.message || `Gemini API 오류 (${response.status})` 
+            });
         }
 
-        function downloadPDF() {
-            const text = ocrOutput.value.trim();
-            if (!text) return;
+        const extractedText = data.candidates?.[0]?.content?.parts?.[0]?.text || '텍스트를 감지하지 못했습니다.';
+        return res.status(200).json({ text: extractedText });
 
-            const pdfContent = document.getElementById('pdfContent');
-            pdfContent.innerHTML = text.replace(/\n/g, '<br>');
-
-            const options = {
-                margin: 15,
-                filename: 'ocr-document.pdf',
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { scale: 2 },
-                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-            };
-
-            html2pdf().set(options).from(pdfContent).save();
-        }
-
-        function showStatus(msg, classes) {
-            statusDiv.className = `text-xs font-medium mb-3 p-3 rounded-lg ${classes}`;
-            statusDiv.innerText = msg;
-            statusDiv.classList.remove('hidden');
-        }
-    </script>
-</body>
-</html>
+    } catch (error) {
+        return res.status(500).json({ error: `서버 내부 오류: ${error.message}` });
+    }
+};
