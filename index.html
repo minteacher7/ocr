@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>이미지 OCR 및 PDF 변환기</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- html2pdf.js CDN (한글 깨짐 방지 PDF 변환) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</head>
+<body class="bg-slate-50 min-h-screen py-10 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-4xl mx-auto space-y-6">
+        
+        <!-- 헤더 영역 -->
+        <header class="text-center space-y-2">
+            <h1 class="text-3xl font-extrabold text-slate-800 tracking-tight">이미지 OCR &amp; PDF 변환기</h1>
+            <p class="text-slate-500 text-sm">이미지 속 텍스트를 AI로 추출하고 PDF 문서로 저장하세요.</p>
+        </header>
+
+        <!-- API 키 입력 영역 -->
+        <section class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+            <label for="apiKey" class="block text-sm font-bold text-slate-700 mb-2">Google AI Studio API 키</label>
+            <input type="password" id="apiKey" placeholder="AIzaSy..." class="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none text-sm transition">
+            <p class="text-xs text-slate-400 mt-2">※ API 키는 브라우저 내부 메모리에만 유지되며 외부에 저장되지 않습니다.</p>
+        </section>
+
+        <!-- 메인 작업 영역 -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            <!-- 1. 이미지 업로드 영역 -->
+            <section class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between">
+                <div>
+                    <h2 class="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                        <span class="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 text-xs flex items-center justify-center font-bold">1</span>
+                        이미지 업로드
+                    </h2>
+                    
+                    <!-- 업로드 드롭존 -->
+                    <label class="flex flex-col items-center justify-center w-full h-44 border-2 border-dashed border-slate-300 hover:border-indigo-400 rounded-xl cursor-pointer bg-slate-50 hover:bg-indigo-50/30 transition mb-4">
+                        <div class="flex flex-col items-center justify-center pt-5 pb-6">
+                            <svg class="w-8 h-8 mb-2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                            </svg>
+                            <p class="text-sm text-slate-600 font-medium">클릭하거나 이미지를 선택하세요</p>
+                        </div>
+                        <input type="file" id="imageInput" accept="image/*" class="hidden">
+                    </label>
+
+                    <!-- 이미지 미리보기 -->
+                    <div class="flex items-center justify-center bg-slate-100 rounded-lg overflow-hidden min-h-[160px] max-h-[220px] mb-4 border border-slate-200">
+                        <img id="imagePreview" class="hidden max-h-52 object-contain" alt="미리보기">
+                        <span id="previewPlaceholder" class="text-slate-400 text-xs">선택된 이미지가 없습니다</span>
+                    </div>
+                </div>
+
+                <button id="ocrBtn" onclick="processOCR()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-lg transition shadow-sm disabled:bg-slate-300 disabled:cursor-not-allowed" disabled>
+                    텍스트 추출하기 (OCR)
+                </button>
+            </section>
+
+            <!-- 2. 추출 결과 및 PDF 저장 영역 -->
+            <section class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between">
+                <div class="flex-1 flex flex-col">
+                    <h2 class="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                        <span class="w-6 h-6 rounded-full bg-emerald-100 text-emerald-600 text-xs flex items-center justify-center font-bold">2</span>
+                        추출 결과 &amp; PDF 변환
+                    </h2>
+                    
+                    <!-- 상태 메세지 -->
+                    <div id="status" class="hidden text-xs font-medium mb-3 p-3 rounded-lg"></div>
+
+                    <!-- 텍스트 편집 결과창 -->
+                    <div class="flex-1 min-h-[220px] mb-4 flex flex-col">
+                        <textarea id="ocrOutput" class="w-full flex-1 p-3.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none text-sm leading-relaxed resize-none font-sans" placeholder="추출된 텍스트가 여기에 표시됩니다. 필요시 텍스트를 직접 수정 후 PDF로 다운로드할 수 있습니다."></textarea>
+                    </div>
+                </div>
+
+                <button id="pdfBtn" onclick="downloadPDF()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-lg transition shadow-sm disabled:bg-slate-300 disabled:cursor-not-allowed" disabled>
+                    PDF 파일로 저장하기
+                </button>
+            </section>
+
+        </div>
+    </div>
+
+    <!-- PDF 변환용 영역 (화면에 보이지 않음) -->
+    <div id="pdfContent" class="hidden p-8 font-sans leading-relaxed text-slate-900"></div>
+
+    <script>
+        const imageInput = document.getElementById('imageInput');
+        const imagePreview = document.getElementById('imagePreview');
+        const previewPlaceholder = document.getElementById('previewPlaceholder');
+        const ocrBtn = document.getElementById('ocrBtn');
+        const pdfBtn = document.getElementById('pdfBtn');
+        const ocrOutput = document.getElementById('ocrOutput');
+        const statusDiv = document.getElementById('status');
+        
+        let selectedBase64 = '';
+        let selectedMimeType = '';
+
+        // 이미지 파일 선택 이벤트
+        imageInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            selectedMimeType = file.type;
+            const reader = new FileReader();
+            
+            reader.onload = (event) => {
+                selectedBase64 = event.target.result.split(',')[1];
+                imagePreview.src = event.target.result;
+                imagePreview.classList.remove('hidden');
+                previewPlaceholder.classList.add('hidden');
+                ocrBtn.disabled = false;
+                showStatus('이미지가 업로드되었습니다. [텍스트 추출하기]를 누르세요.', 'bg-slate-100 text-slate-700');
+            };
+
+            reader.readAsDataURL(file);
+        });
+
+        // Gemini 3.6 Flash API 호출 및 OCR 처리
+        async function processOCR() {
+            const apiKey = document.getElementById('apiKey').value.trim();
+            
+            if (!apiKey) {
+                showStatus('Google AI Studio API 키를 먼저 입력해 주세요.', 'bg-red-50 text-red-600 border border-red-200');
+                return;
+            }
+
+            showStatus('AI가 이미지 속 텍스트를 분석하는 중입니다...', 'bg-blue-50 text-blue-600 border border-blue-200');
+            ocrBtn.disabled = true;
+
+            try {
+                // 모델명 gemini-3.6-flash 사용
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [
+                                { text: "Extract all visible text from this image as accurately as possible. Maintain the original layout and line breaks without adding explanations or comments." },
+                                {
+                                    inlineData: {
+                                        mimeType: selectedMimeType,
+                                        data: selectedBase64
+                                    }
+                                }
+                            ]
+                        }]
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error?.message || 'API 호출 중 오류가 발생했습니다.');
+                }
+
+                const extractedText = data.candidates?.[0]?.content?.parts?.[0]?.text || '텍스트를 감지하지 못했습니다.';
+                ocrOutput.value = extractedText;
+                pdfBtn.disabled = false;
+                showStatus('텍스트 추출 성공! 수정한 뒤 PDF로 저장할 수 있습니다.', 'bg-emerald-50 text-emerald-600 border border-emerald-200');
+
+            } catch (err) {
+                showStatus(`오류 발생: ${err.message}`, 'bg-red-50 text-red-600 border border-red-200');
+            } finally {
+                ocrBtn.disabled = false;
+            }
+        }
+
+        // PDF 생성 및 다운로드 함수
+        function downloadPDF() {
+            const text = ocrOutput.value.trim();
+            if (!text) return;
+
+            const pdfContent = document.getElementById('pdfContent');
+            pdfContent.innerHTML = text.replace(/\n/g, '<br>');
+
+            const options = {
+                margin: 15,
+                filename: 'ocr-document.pdf',
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2 },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            html2pdf().set(options).from(pdfContent).save();
+        }
+
+        // 상태 메시지 출력 함수
+        function showStatus(msg, classes) {
+            statusDiv.className = `text-xs font-medium mb-3 p-3 rounded-lg ${classes}`;
+            statusDiv.innerText = msg;
+            statusDiv.classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
